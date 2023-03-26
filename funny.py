@@ -5,7 +5,16 @@ import platform
 import random
 import sys
 
-if "android" not in platform.platform().lower():
+import pyautogui
+
+if "--img" in sys.argv:
+    to_image = True
+elif "--term" in sys.argv:
+    to_image = False
+else:
+    to_image = "android" not in platform.platform().lower()
+
+if to_image:
     from PIL import Image
 else:
     print("\n" * 100)
@@ -103,17 +112,28 @@ class Equ:
 
 
 st = EquSet(EquTree.PLUS, EquTree.PLUS, EquTree.PLUS)
-st.r.add(EquTree(EquTree.SIN), 0)
-st.r.left.add(EquTree(EquTree.PLUS), 0)
-st.r.left.left.add(Equ.f_sint(1), 0)
-st.r.left.left.add(Equ(lambda x, y, t: x + y), 1)
+st.b.add(EquTree(EquTree.SIN), 0)
+st.b.left.add(EquTree(EquTree.PLUS), 0)
+st.b.left.left.add(Equ.f_sint(25), 0)
+st.b.left.left.add(Equ(lambda x, y, t: x + y), 1)
 
 dst = lambda a, b: math.sqrt(
     (abs(b[0] - a[0]) ** 2) + (abs(b[1] - a[1]) ** 2)
 )
 
 p1 = (-1.0, 0.2)
-p2 = (2.0, 0.5)
+p2 = (0.5, 0.5)
+
+
+def lindist_from_mouse(a, b):
+    # ignores arg a
+    pm = normalised_mouse_pos()
+
+    x_diff = p2[0] - pm[0]
+    y_diff = p2[1] - pm[1]
+    num = abs(y_diff * b[0] - x_diff * b[1] + p2[0] * pm[1] - p2[1] * pm[0])
+    den = math.sqrt(y_diff ** 2 + x_diff ** 2)
+    return (num / den) if den > 0 else 0
 
 
 def lindist(a, b):
@@ -131,29 +151,48 @@ def dist(a, b):
     return dst(a, b)
 
 
+def normalised_mouse_pos():
+    mx, my = pyautogui.position()
+    sx, sy = pyautogui.size()
+
+    mx -= (sx / 4)
+    my -= (sy / 4)
+
+    sx /= 2
+    sy /= 2
+
+    return my / sy, mx / sx
+
+
 p = (0.44, 0.77)
 st.g.add(
-    Equ(lambda x, y, t: max(0.0, -0.1 + min(1.1, 1.12 - lindist(p, (x, y)))) ** 50), 0)
+    Equ(lambda x, y, t: max(0.0, -0.1 + min(1.1, 1.12 - lindist_from_mouse(p, (x, y)))) ** 50), 0)
 
-st.b.add(Equ(lambda x, y, t: (random.random() - 0.5) * 100), 1)
-st.b.add(EquTree(EquTree.SIN), 0)
-st.b.left.add(EquTree(EquTree.MULT), 0)
-st.b.left.left.add(Equ.f_sint(3), 0)
-st.b.left.left.add(Equ(lambda x, y, t: x * y), 1)
+st.r.add(
+    Equ(lambda x, y, t: max(0.0, -0.1 + min(1.1, 1.14 - dist(normalised_mouse_pos(), (x, y)))) ** 50), 0)
 
-num = 250
+# st.b.add(Equ(lambda x, y, t: (random.random() - 0.5) * 100), 1)
+# st.b.add(EquTree(EquTree.SIN), 0)
+# st.b.left.add(EquTree(EquTree.MULT), 0)
+# st.b.left.left.add(Equ.f_sint(3), 0)
+# st.b.left.left.add(Equ(lambda x, y, t: x * y), 1)
 
-if not "android" in platform.platform().lower():
+num = 25000
+
+if to_image:
     siz = 250
 else:
-    siz = 20
+    tsize = os.get_terminal_size()
+
+    siz = min(tsize.columns / 2, tsize.lines) - 6
+    siz = int(siz)
 
 for i in range(num):
     t = float(i) / float(num)
 
     result = st.calc(siz, siz, t)
 
-    if "android" not in platform.platform().lower():
+    if to_image:
         img = Image.new("RGB", (siz, siz), color=(0, 0, 0))
         for x in range(siz):
             for y in range(siz):
@@ -169,7 +208,6 @@ for i in range(num):
 
     else:
         print("\033[1;1H\n", end="")
-        print("\x1b[38;2;20;255;20mTRUECOLOR\x1b[0m\n")
         txt = ""
         for y in range(siz):
             for x in range(siz):
